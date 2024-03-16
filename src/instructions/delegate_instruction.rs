@@ -1,3 +1,4 @@
+use arrayref::array_ref;
 use solana_program::program_error::ProgramError;
 
 #[derive(Debug)]
@@ -29,11 +30,23 @@ pub enum DelegatooooorInstruction {
 impl DelegatooooorInstruction {
     /// Unpack a byte buffer into a [DelegatooooorInstruction].
     pub fn unpack(input: &[u8]) -> Result<Self, ProgramError> {
-        let (&tag, rest) = input.split_first().ok_or(ProgramError::InvalidInstructionData)?;
+        let (&tag, rest) = input
+            .split_first()
+            .ok_or(ProgramError::InvalidInstructionData)?;
         Ok(match tag {
             0 => Self::GrantPermission,
             1 => Self::RevokePermission,
-            2 => Self::ExecuteTransaction { amount: u64::from_le_bytes(*array_ref![rest, 0, 8]) },
+            2 => {
+                // Ensure there are enough bytes for a u64 value.
+                if rest.len() >= 8 {
+                    let (amount_bytes, _) = rest.split_at(8);
+                    Self::ExecuteTransaction {
+                        amount: u64::from_le_bytes(*array_ref![amount_bytes, 0, 8])
+                    }
+                } else {
+                    return Err(ProgramError::InvalidInstructionData);
+                }
+            },
             _ => return Err(ProgramError::InvalidInstructionData),
         })
     }
