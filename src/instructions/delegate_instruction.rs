@@ -41,12 +41,12 @@ impl DelegatooooorInstruction {
                 if rest.len() >= 8 {
                     let (amount_bytes, _) = rest.split_at(8);
                     Self::ExecuteTransaction {
-                        amount: u64::from_le_bytes(*array_ref![amount_bytes, 0, 8])
+                        amount: u64::from_le_bytes(*array_ref![amount_bytes, 0, 8]),
                     }
                 } else {
                     return Err(ProgramError::InvalidInstructionData);
                 }
-            },
+            }
             _ => return Err(ProgramError::InvalidInstructionData),
         })
     }
