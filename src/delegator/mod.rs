@@ -1,1 +1,1 @@
-mod delegate;
+pub mod delegate;
