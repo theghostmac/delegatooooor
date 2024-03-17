@@ -13,7 +13,16 @@ pub const DELEGATE_PERMISSIONS_ACCOUNT_SIZE: usize = 32 + 1 + 4; // Public key(3
 
 #[derive(Debug)]
 pub enum Permission {
-    Spend,
+    Spend = 0,
+}
+
+impl From<u8> for Permission {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Permission::Spend,
+            _ => panic!("Unsupported permission!") // TODO: handle this more gracefully.
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

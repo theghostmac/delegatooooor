@@ -15,9 +15,8 @@ use crate::delegator::delegate::DelegatePermissions;
 pub struct Processor;
 
 impl Processor {
-    pub fn process(&self,
-                   _program_id: &Pubkey,
-                   _accounts: &[AccountInfo],
+    pub fn process(_program_id: &Pubkey,
+                   _accounts: &mut [AccountInfo],
                    _instruction_data: &[u8],
     ) -> ProgramResult {
         let instruction = DelegatooooorInstruction::unpack(_instruction_data)?;
@@ -25,22 +24,22 @@ impl Processor {
         match instruction {
             DelegatooooorInstruction::GrantPermission => {
                 msg!("Instruction: GrantPermission");
-                self.grant_permission(_accounts)
+                Self::grant_permission(_accounts)
             }
             DelegatooooorInstruction::RevokePermission => {
                 msg!("Instruction: RevokePermission");
-                self.revoke_permission(_accounts)
+                Self::revoke_permission(_accounts)
             }
             DelegatooooorInstruction::ExecuteTransaction { amount: _amount } => {
                 msg!("Instruction: ExecuteTransaction");
-                self.execute_transaction(_accounts, _amount)
+                Self::execute_transaction(_accounts, _amount)
             }
         }.expect("Error: Instruction not implemented");
 
         Ok(())
     }
 
-    fn grant_permission(&self, _accounts: &[AccountInfo]) -> ProgramResult {
+    fn grant_permission(_accounts: &mut [AccountInfo]) -> ProgramResult {
         // Validate accounts.
         let signer_account = next_account_info(_accounts)?; // Delegator signer.
         let delegate_account = next_account_info(_accounts)?; // Delegate account.
@@ -76,7 +75,7 @@ impl Processor {
         Ok(())
     }
 
-    fn revoke_permission(&self, _accounts: &[AccountInfo]) -> ProgramResult {
+    fn revoke_permission(_accounts: &mut [AccountInfo]) -> ProgramResult {
         // Validate accounts (same as grant_permission)
         let signer_account = next_account_info(_accounts)?;
         let delegate_account = next_account_info(_accounts)?;
@@ -107,7 +106,7 @@ impl Processor {
         Ok(())
     }
 
-    fn execute_transaction(&self, account: &[AccountInfo], amount: u64) -> ProgramResult {
+    fn execute_transaction(account: &mut [AccountInfo], amount: u64) -> ProgramResult {
         // Validate accounts.
         let delegate_account = next_account_info(account)?; // Delegate account.
 
@@ -122,7 +121,7 @@ impl Processor {
 
         // Check permissions (ensure delegate has permission to spend)
         if !delegate_permissions.permissions.contains(&DelegatePermissions::Permission::Spend) {
-            return Err(ProgramError::InvalidAccountData); // Enforce delegate has spend permission.
+            return Err(ProgramError::InvalidAccountData); // Enforce delegate has spending permission.
         }
 
         // TODO: Execute transaction.
