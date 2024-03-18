@@ -1,17 +1,20 @@
-use arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs};
-use solana_program::program_error::ProgramError;
-use solana_program::program_pack::{IsInitialized, Pack, Sealed};
-use solana_program::pubkey::Pubkey;
+use arrayref::{array_refs, mut_array_refs};
+use solana_program::{
+    program_error::ProgramError,
+    program_pack::{IsInitialized, Pack, Sealed},
+    pubkey::Pubkey,
+};
 
-/// DELEGATE_PERMISSIONS_ACCOUNT_SIZE defines the size (37 bytes) of a DelegatePermissions account on Solana.
-///
-/// This accounts for:
-/// 0. delegator_address(32 bytes)
-/// 1. is_initialized(1 byte)
-/// 2. permissions_len(4 bytes)
-pub const DELEGATE_PERMISSIONS_ACCOUNT_SIZE: usize = 32 + 1 + 4; // Public key(32) + bool(1) + Vec length(4) for Permissions
+pub const DELEGATOR_ADDRESS_SIZE: usize = 32;
+pub const IS_INITIALIZED_SIZE: usize = 1;
+pub const PERMISSIONS_LENGTH_SIZE: usize = 4;
+pub const PERMISSION_SIZE: usize = 1;
 
-#[derive(Debug)]
+pub const DELEGATE_PERMISSIONS_ACCOUNT_SIZE: usize = DELEGATOR_ADDRESS_SIZE
+    + IS_INITIALIZED_SIZE
+    + PERMISSIONS_LENGTH_SIZE; // This will be the base size without the actual permissions.
+
+#[derive(Debug, Clone, Copy)]
 pub enum Permission {
     Spend = 0,
 }
@@ -25,18 +28,20 @@ impl From<u8> for Permission {
     }
 }
 
+impl Into<u8> for Permission {
+    fn into(self) -> u8 {
+        self as u8
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct DelegatePermissions {
-    /// The delegator's address.
     pub delegator_address: Pubkey,
-    /// If the delegate permissions are initialized.
     pub is_initialized: bool,
-    /// Permissions given to the delegate.
     pub permissions: Vec<Permission>,
 }
 
 impl Sealed for DelegatePermissions {}
-
 impl IsInitialized for DelegatePermissions {
     fn is_initialized(&self) -> bool {
         self.is_initialized
@@ -44,46 +49,55 @@ impl IsInitialized for DelegatePermissions {
 }
 
 impl Pack for DelegatePermissions {
-    /// The size of the data in bytes when serialized.
     const LEN: usize = DELEGATE_PERMISSIONS_ACCOUNT_SIZE;
 
-    /// Serialize the DelegatePermissions struct into a byte array.
     fn pack_into_slice(&self, dst: &mut [u8]) {
-        let dst = array_mut_ref![dst, 0, DELEGATE_PERMISSIONS_ACCOUNT_SIZE];
-        let (_delegator_address_dst, _is_initialized_dst, _permissions_dst) =
+        let (delegator_address_dst, is_initialized_dst, permissions_length_dst) =
             mut_array_refs![dst, 32, 1, 4];
 
-        *_delegator_address_dst = self.delegator_address.to_bytes();
-        _is_initialized_dst[0] = self.is_initialized as u8;
+        *delegator_address_dst = self.delegator_address.to_bytes();
+        is_initialized_dst[0] = self.is_initialized as u8;
 
-        // Serialize the permissions length as u32  (4 bytes).
         let permissions_length = self.permissions.len() as u32;
-        *_permissions_dst = permissions_length.to_le_bytes();
+        *permissions_length_dst = permissions_length.to_le_bytes();
+
+        // Start writing permissions after the fixed-size parts.
+        let permissions_start = 32 + 1 + 4; // Sum of sizes of previous parts
+        let permissions_dst = &mut dst[permissions_start..permissions_start + (permissions_length as usize)];
+
+        // Serialize the permissions, assuming each permission is one byte.
+        for (i, permission) in self.permissions.iter().enumerate() {
+            permissions_dst[i] = *permission as u8;
+        }
     }
 
-    /// Deserialize the byte array back into the DelegatePermissions struct.
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let src = array_ref![src, 0, DELEGATE_PERMISSIONS_ACCOUNT_SIZE];
-        let (delegator_address_src, is_initialized_src, permissions_src) =
-            array_refs![src, 32, 1, 4];
+        let (delegator_address_src, is_initialized_src, permissions_length_src) =
+            array_refs![src, DELEGATOR_ADDRESS_SIZE, IS_INITIALIZED_SIZE, PERMISSIONS_LENGTH_SIZE];
 
         let delegator_address = Pubkey::new_from_array(*delegator_address_src);
-
         let is_initialized = match is_initialized_src {
             [0] => false,
             [1] => true,
             _ => return Err(ProgramError::InvalidAccountData),
         };
 
-        // Deserialize the permissions length as u32 (4 bytes).
-        let permissions_len = u32::from_le_bytes(*permissions_src);
-        let mut permissions = Vec::with_capacity(permissions_len as usize);
+        let permissions_len = u32::from_le_bytes(*permissions_length_src) as usize;
 
-        // Fill the permissions vector with the given length.
-        &src[DELEGATE_PERMISSIONS_ACCOUNT_SIZE..];
-        for _ in 0..permissions_len {
-            let permission = Permission::Spend;
-            permissions.push(permission);
+        // Calculate the start and end indices of the permissions data in the source slice
+        let permissions_start_index = DELEGATOR_ADDRESS_SIZE + IS_INITIALIZED_SIZE + PERMISSIONS_LENGTH_SIZE;
+        let permissions_end_index = permissions_start_index + permissions_len;
+
+        // Ensure the slice contains enough data for the permissions
+        if src.len() < permissions_end_index {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        let permissions_src = &src[permissions_start_index..permissions_end_index];
+
+        let mut permissions = Vec::with_capacity(permissions_len);
+        for permission_byte in permissions_src.iter() {
+            permissions.push(Permission::from(*permission_byte));
         }
 
         Ok(DelegatePermissions {
