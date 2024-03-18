@@ -1,6 +1,12 @@
-use solana_program::{account_info::{AccountInfo, next_account_info}, entrypoint::ProgramResult, msg, program_error::ProgramError, pubkey::Pubkey};
 use solana_program::program::invoke;
 use solana_program::program_pack::Pack;
+use solana_program::{
+    account_info::{next_account_info, AccountInfo},
+    entrypoint::ProgramResult,
+    msg,
+    program_error::ProgramError,
+    pubkey::Pubkey,
+};
 use spl_token::instruction as token_instruction;
 
 use crate::delegator::delegate::{DelegatePermissions, Permission};
@@ -20,28 +26,25 @@ impl Processor {
             DelegatooooorInstruction::GrantPermission { allowance } => {
                 msg!("Instruction: GrantPermission");
                 Self::grant_permission(accounts, allowance)
-            },
+            }
             DelegatooooorInstruction::RevokePermission => {
                 msg!("Instruction: RevokePermission");
                 // Create an iterator with immutable references for revoke_permission
                 let accounts_iter = accounts.iter();
                 Self::revoke_permission(accounts_iter)
-            },
+            }
             DelegatooooorInstruction::ExecuteTransaction { amount } => {
                 msg!("Instruction: ExecuteTransaction");
                 // Create an iterator with immutable references for execute_transaction
                 let accounts_iter = accounts.iter();
                 Self::execute_transaction(accounts_iter, amount)
-            },
+            }
         }?;
 
         Ok(())
     }
 
-    fn grant_permission(
-        accounts: &mut [AccountInfo],
-        allowance: u64,
-    ) -> ProgramResult {
+    fn grant_permission(accounts: &mut [AccountInfo], allowance: u64) -> ProgramResult {
         if accounts.len() < 4 {
             return Err(ProgramError::NotEnoughAccountKeys);
         }
@@ -60,7 +63,8 @@ impl Processor {
         }
 
         let mut delegate_permissions_account_data = delegate_account.try_borrow_mut_data()?;
-        let mut delegate_permissions = DelegatePermissions::unpack_from_slice(&delegate_permissions_account_data)?;
+        let mut delegate_permissions =
+            DelegatePermissions::unpack_from_slice(&delegate_permissions_account_data)?;
 
         if !delegate_permissions.is_initialized {
             delegate_permissions.is_initialized = true;
@@ -70,7 +74,10 @@ impl Processor {
             delegate_permissions.permissions.push(Permission::Spend);
         }
 
-        DelegatePermissions::pack_into_slice(&delegate_permissions, &mut delegate_permissions_account_data);
+        DelegatePermissions::pack_into_slice(
+            &delegate_permissions,
+            &mut delegate_permissions_account_data,
+        );
 
         let approve_instruction = token_instruction::approve(
             token_program.key,
@@ -110,11 +117,17 @@ impl Processor {
         }
 
         let mut delegate_permissions_account_data = delegate_account.try_borrow_mut_data()?;
-        let mut delegate_permissions = DelegatePermissions::unpack_from_slice(&delegate_permissions_account_data)?;
+        let mut delegate_permissions =
+            DelegatePermissions::unpack_from_slice(&delegate_permissions_account_data)?;
 
         if delegate_permissions.is_initialized {
-            delegate_permissions.permissions.retain(|&p| p != Permission::Spend);
-            DelegatePermissions::pack_into_slice(&delegate_permissions, &mut delegate_permissions_account_data);
+            delegate_permissions
+                .permissions
+                .retain(|&p| p != Permission::Spend);
+            DelegatePermissions::pack_into_slice(
+                &delegate_permissions,
+                &mut delegate_permissions_account_data,
+            );
         }
 
         Ok(())
@@ -137,14 +150,18 @@ impl Processor {
 
         // Deserialize the delegate permissions from the delegate account's data
         let delegate_permissions_account_data = delegate_account.try_borrow_data()?;
-        let delegate_permissions = DelegatePermissions::unpack_from_slice(&delegate_permissions_account_data)?;
+        let delegate_permissions =
+            DelegatePermissions::unpack_from_slice(&delegate_permissions_account_data)?;
 
         // Check if the delegate has the Spend permission
-        if !delegate_permissions.permissions.contains(&Permission::Spend) {
+        if !delegate_permissions
+            .permissions
+            .contains(&Permission::Spend)
+        {
             return Err(ProgramError::InvalidAccountData);
         }
 
-       // Attempting transferring SPL tokens from source to destination.
+        // Attempting transferring SPL tokens from source to destination.
 
         // Make sure the token_program account provided is the correct SPL Token program
         if *token_program.key != spl_token::id() {

@@ -4,7 +4,7 @@
 
 ### Granting Permission:
 An account holder (the delegator) decides to grant permission to a delegate.
-They create and sign a transaction that includes a `GrantPermission` instruct``ion, specifying the delegate's account.
+They create and sign a transaction that includes a `GrantPermission` instruction, specifying the delegate's account.
 My program's `process_instruction` function gets called, which in turn calls Processor::process`` with the instruction data.
 `Processor::process` identifies the `GrantPermission` instruction and calls `grant_permission`, 
 which updates a `DelegatePermissions` account to include a new permission (e.g., `Spend`).

@@ -44,7 +44,7 @@ impl DelegatooooorInstruction {
                 } else {
                     return Err(ProgramError::InvalidInstructionData);
                 }
-            },
+            }
             1 => Self::RevokePermission,
             2 => {
                 // Ensure there are enough bytes for an u64 value for amount.
@@ -56,9 +56,8 @@ impl DelegatooooorInstruction {
                 } else {
                     return Err(ProgramError::InvalidInstructionData);
                 }
-            },
+            }
             _ => return Err(ProgramError::InvalidInstructionData),
         })
     }
 }
-

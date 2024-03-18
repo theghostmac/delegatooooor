@@ -10,9 +10,8 @@ pub const IS_INITIALIZED_SIZE: usize = 1;
 pub const PERMISSIONS_LENGTH_SIZE: usize = 4;
 pub const PERMISSION_SIZE: usize = 1;
 
-pub const DELEGATE_PERMISSIONS_ACCOUNT_SIZE: usize = DELEGATOR_ADDRESS_SIZE
-    + IS_INITIALIZED_SIZE
-    + PERMISSIONS_LENGTH_SIZE; // This will be the base size without the actual permissions.
+pub const DELEGATE_PERMISSIONS_ACCOUNT_SIZE: usize =
+    DELEGATOR_ADDRESS_SIZE + IS_INITIALIZED_SIZE + PERMISSIONS_LENGTH_SIZE; // This will be the base size without the actual permissions.
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Permission {
@@ -23,7 +22,7 @@ impl From<u8> for Permission {
     fn from(value: u8) -> Self {
         match value {
             0 => Permission::Spend,
-            _ => panic!("Unsupported permission!") // TODO: handle this more gracefully.
+            _ => panic!("Unsupported permission!"), // TODO: handle this more gracefully.
         }
     }
 }
@@ -39,7 +38,7 @@ pub struct DelegatePermissions {
     pub delegator_address: Pubkey,
     pub is_initialized: bool,
     pub permissions: Vec<Permission>,
-    pub approved_tokens: Vec<ApprovedToken>
+    pub approved_tokens: Vec<ApprovedToken>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
