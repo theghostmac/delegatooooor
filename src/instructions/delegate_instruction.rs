@@ -34,10 +34,20 @@ impl DelegatooooorInstruction {
             .split_first()
             .ok_or(ProgramError::InvalidInstructionData)?;
         Ok(match tag {
-            0 => Self::GrantPermission,
+            0 => {
+                // Ensure there are enough bytes for an u64 value for allowance.
+                if rest.len() >= 8 {
+                    let (allowance_bytes, _) = rest.split_at(8);
+                    Self::GrantPermission {
+                        allowance: u64::from_le_bytes(*array_ref![allowance_bytes, 0, 8]),
+                    }
+                } else {
+                    return Err(ProgramError::InvalidInstructionData);
+                }
+            },
             1 => Self::RevokePermission,
             2 => {
-                // Ensure there are enough bytes for a u64 value.
+                // Ensure there are enough bytes for an u64 value for amount.
                 if rest.len() >= 8 {
                     let (amount_bytes, _) = rest.split_at(8);
                     Self::ExecuteTransaction {
@@ -46,8 +56,9 @@ impl DelegatooooorInstruction {
                 } else {
                     return Err(ProgramError::InvalidInstructionData);
                 }
-            }
+            },
             _ => return Err(ProgramError::InvalidInstructionData),
         })
     }
 }
+

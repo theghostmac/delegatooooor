@@ -14,7 +14,7 @@ pub const DELEGATE_PERMISSIONS_ACCOUNT_SIZE: usize = DELEGATOR_ADDRESS_SIZE
     + IS_INITIALIZED_SIZE
     + PERMISSIONS_LENGTH_SIZE; // This will be the base size without the actual permissions.
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Permission {
     Spend = 0,
 }
@@ -34,7 +34,7 @@ impl Into<u8> for Permission {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default)]
 pub struct DelegatePermissions {
     pub delegator_address: Pubkey,
     pub is_initialized: bool,
@@ -74,76 +74,55 @@ impl IsInitialized for DelegatePermissions {
 }
 
 impl Pack for DelegatePermissions {
-    const LEN: usize = DELEGATE_PERMISSIONS_ACCOUNT_SIZE;
+    const LEN: usize = DELEGATOR_ADDRESS_SIZE + IS_INITIALIZED_SIZE + PERMISSIONS_LENGTH_SIZE + 4; // Base size, excluding dynamic parts
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
-        let (
-            delegator_address_dst,
-            is_initialized_dst,
-            permissions_length_dst,
-        approved_tokens_length_dst) =
-            mut_array_refs![dst, 32, 1, 4, 4];
+        let (delegator_address_dst, rest) = dst.split_at_mut(DELEGATOR_ADDRESS_SIZE);
+        // Use .copy_from_slice() to copy the bytes from the array to the slice
+        delegator_address_dst.copy_from_slice(&self.delegator_address.to_bytes());
 
-        *delegator_address_dst = self.delegator_address.to_bytes();
-        is_initialized_dst[0] = self.is_initialized as u8;
+        rest[0] = self.is_initialized as u8;
 
         let permissions_length = self.permissions.len() as u32;
-        *permissions_length_dst = permissions_length.to_le_bytes();
+        rest[1..5].copy_from_slice(&permissions_length.to_le_bytes());
 
-        // Serialize the permissions, assuming each permission is one byte.
-        let mut offset = 32 + 1 + 4; // Sum of sizes of previous parts
-        for (i, permission) in self.permissions.iter().enumerate() {
-            dst[offset + i] = (*permission).into();
+        let mut offset = 5; // Start after fixed size parts
+        for permission in &self.permissions {
+            rest[offset] = (*permission).into();
+            offset += 1; // Assuming PERMISSION_SIZE is 1
         }
-        offset += permissions_length as usize;
 
-        // Now handle approved_tokens
         let approved_tokens_length = self.approved_tokens.len() as u32;
-        *approved_tokens_length_dst = approved_tokens_length.to_le_bytes();
+        rest[offset..offset + 4].copy_from_slice(&approved_tokens_length.to_le_bytes());
+        offset += 4;
 
-        for (i, token) in self.approved_tokens.iter().enumerate() {
-            let start = offset + (i * 40); // 40 bytes for each ApprovedToken
-            token.pack_into_slice(&mut dst[start..start + 40]);
+        for token in &self.approved_tokens {
+            token.pack_into_slice(&mut rest[offset..offset + 40]);
+            offset += 40;
         }
     }
 
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let (delegator_address_src, is_initialized_src, permissions_length_src, approved_tokens_length_src) =
-            array_refs![src, 32, 1, 4, 4];
+        let delegator_address = Pubkey::new_from_array(*array_ref![src, 0, 32]);
+        let is_initialized = src[32] != 0;
 
-        let delegator_address = Pubkey::new_from_array(*delegator_address_src);
-        let is_initialized = match is_initialized_src {
-            [0] => false,
-            [1] => true,
-            _ => return Err(ProgramError::InvalidAccountData),
-        };
+        let permissions_length = u32::from_le_bytes(*array_ref![src, 33, 4]) as usize;
+        let mut offset = 37; // Start after fixed size parts
 
-        let permissions_length = u32::from_le_bytes(*permissions_length_src) as usize;
-        let permissions_start_index = DELEGATOR_ADDRESS_SIZE + IS_INITIALIZED_SIZE + PERMISSIONS_LENGTH_SIZE + PERMISSIONS_LENGTH_SIZE; // Adjusted for the additional approved_tokens_length field
-        let permissions_end_index = permissions_start_index + permissions_length;
-
-        if src.len() < permissions_end_index {
-            return Err(ProgramError::InvalidAccountData);
-        }
-
-        let permissions_src = &src[permissions_start_index..permissions_end_index];
         let mut permissions = Vec::with_capacity(permissions_length);
-        for permission_byte in permissions_src.iter() {
-            permissions.push(Permission::from(*permission_byte));
+        for _ in 0..permissions_length {
+            permissions.push(Permission::from(src[offset]));
+            offset += PERMISSION_SIZE;
         }
 
-        // Handling approved_tokens_length and approved_tokens deserialization
-        let approved_tokens_length = u32::from_le_bytes(*approved_tokens_length_src) as usize;
+        let approved_tokens_length = u32::from_le_bytes(*array_ref![src, offset, 4]) as usize;
+        offset += 4;
+
         let mut approved_tokens = Vec::with_capacity(approved_tokens_length);
-        let mut current_index = permissions_end_index;
         for _ in 0..approved_tokens_length {
-            if current_index + 40 > src.len() {
-                return Err(ProgramError::InvalidAccountData);
-            }
-            let token_slice = &src[current_index..current_index + 40];
-            let approved_token = ApprovedToken::unpack_from_slice(token_slice)?;
-            approved_tokens.push(approved_token);
-            current_index += 40; // Move to the next token position
+            let token = ApprovedToken::unpack_from_slice(&src[offset..offset + 40])?;
+            approved_tokens.push(token);
+            offset += 40;
         }
 
         Ok(DelegatePermissions {
