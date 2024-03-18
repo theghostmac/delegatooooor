@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 solana-program = "1.18.6"
 arrayref = "0.3.7"
+spl-token = "4.0.1"

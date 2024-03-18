@@ -9,7 +9,7 @@ pub enum DelegatooooorInstruction {
     ///
     /// 0. `[signer]` The account of the wallet granting permission.
     /// 1. `[writable]` The account of the delegate.
-    GrantPermission,
+    GrantPermission { allowance: u64 },
 
     /// Revoke permission from a delegate.
     ///
